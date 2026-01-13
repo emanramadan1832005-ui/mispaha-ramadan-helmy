@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مسبحة رمضان حلمي</title>
+  <style>
+    :root{
+      --bg1:#0f2027; --bg2:#203a43; --bg3:#2c5364;
+      --card:#14313a; --accent:#ffd54a; --muted:rgba(255,255,255,0.85);
+    }
+    /* منع تكبير النص التلقائي على بعض المتصفحات */
+    html { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; font-size:16px; }
+    body{
+      height:100%; margin:0; font-family: "Segoe UI", Tahoma, Arial, "Noto Naskh Arabic", sans-serif;
+      background:linear-gradient(180deg,var(--bg1),var(--bg2),var(--bg3)); color:#fff;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+    .container{
+      max-width:540px; margin:24px auto; padding:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,0.45); text-align:center;
+    }
+    h1{margin:6px 0; font-size:1.25rem}
+    p.lead{margin:0; color:var(--muted); font-size:0.95rem}
+    /* جعل العداد يستجيب لحجم الشاشة */
+    .counter{
+      font-size: clamp(2.25rem, 10vw, 4.5rem); margin:18px 0; font-weight:700; letter-spacing:1px;
+      line-height:1;
+      word-break:break-word;
+    }
+    .meta{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:10px}
+    .meta select, .meta button{background:var(--card); color:#fff; border:1px solid rgba(255,255,255,0.06); padding:7px 10px; border-radius:9px; font-size:0.95rem}
+    .buttons{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+    .btn{font-size:16px;padding:10px 18px;border-radius:26px;border:none;cursor:pointer;min-width:120px}
+    .btn-primary{background:linear-gradient(90deg,#4CAF50,#2E8B57)}
+    .btn-danger{background:linear-gradient(90deg,#f44336,#d32f2f)}
+    .small{font-size:0.85rem;padding:7px 10px;border-radius:9px}
+    footer{margin-top:14px;color:var(--muted);font-size:0.9rem}
+    .status{margin-top:10px;color:var(--muted);font-size:0.95rem}
+    /* تحسين لمس الشاشة الصغيرة */
+    button:active { transform: scale(0.995); }
+    button:focus, select:focus { outline:3px solid rgba(255,213,74,0.14); outline-offset:2px; }
+    @media (max-width:380px){
+      .container{margin:12px;padding:12px}
+      .btn{min-width:100px;padding:9px 14px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-label="مسبحة رمضان حلمي">
+    <h1>مسبحة رمضان حلمي</h1>
+    <p class="lead">سبّح وشارك الأجر — اضغط أو اضغط مطولًا للعدّ التلقائي</p>
+
+    <div class="counter" id="count" aria-live="polite">0</div>
+
+    <div class="meta" aria-hidden="false">
+      <label for="limitSelect" style="display:flex;align-items:center;gap:6px;font-size:0.95rem">
+        دورة:
+        <select id="limitSelect" title="اختر عدد الخرز في الدورة">
+          <option value="33">33</option>
+          <option value="99">99</option>
+          <option value="0">بدون حد</option>
+        </select>
+      </label>
+
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="vibToggle" class="small" aria-pressed="false" title="تشغيل/إيقاف الهزاز">هزاز: إيقاف</button>
+        <button id="soundToggle" class="small" aria-pressed="false" title="تشغيل/إيقاف الصوت">صوت: إيقاف</button>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="tasbeehBtn" class="btn btn-primary" aria-label="سبح">سبح</button>
+      <button id="resetBtn" class="btn btn-danger" aria-label="تصفير">تصفير</button>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+      <button id="shareBtn" class="small">مشاركة/نسخ</button>
+      <button id="saveBtn" class="small">حفظ ملف</button>
+    </div>
+
+    <div class="status" id="status">
+      <span id="cycles">الدورات المكتملة: 0</span> — <span id="limitText">الحد: 33</span>
+    </div>
+
+    <footer>صدقة جارية باسم رمضان حلمي — حفظ تلقائي على جهازك</footer>
+  </div>
+
+<script>
+(() => {
+  const countEl = document.getElementById('count');
+  const btn = document.getElementById('tasbeehBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const limitSelect = document.getElementById('limitSelect');
+  const cyclesEl = document.getElementById('cycles');
+  const limitText = document.getElementById('limitText');
+  const vibToggle = document.getElementById('vibToggle');
+  const soundToggle = document.getElementById('soundToggle');
+  const shareBtn = document.getElementById('shareBtn');
+  const saveBtn = document.getElementById('saveBtn');
+
+  const KEY = 'tasbeeh_state_v1';
+  let state = { count:0, limit:33, cycles:0, vibrate:false, sound:false };
+  let holdInterval = null;
+  let audioCtx = null;
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw) Object.assign(state, JSON.parse(raw));
+    }catch(e){}
+    limitSelect.value = String(state.limit);
+    updateUI();
+  }
+  function saveState(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+
+  function updateUI(){
+    countEl.textContent = state.count;
+    cyclesEl.textContent = 'الدورات المكتملة: ' + state.cycles;
+    limitText.textContent = state.limit === 0 ? 'الحد: بدون حد' : 'الحد: ' + state.limit;
+    vibToggle.textContent = 'هزاز: ' + (state.vibrate ? 'تشغيل' : 'إيقاف');
+    vibToggle.setAttribute('aria-pressed', state.vibrate);
+    soundToggle.textContent = 'صوت: ' + (state.sound ? 'تشغيل' : 'إيقاف');
+    soundToggle.setAttribute('aria-pressed', state.sound);
+  }
+
+  function beep(){
+    if(!state.sound) return;
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine';
+      o.frequency.value = 520;
+      g.gain.value = 0.06;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start();
+      setTimeout(()=>{ o.stop(); }, 80);
+    }catch(e){}
+  }
+
+  function vibrate(){
+    if(state.vibrate && navigator.vibrate) navigator.vibrate(20);
+  }
+
+  function increment(){
+    state.count++;
+    if(state.limit > 0 && state.count >= state.limit){
+      state.cycles++;
+      setTimeout(()=> {
+        document.body.style.transition = 'background-color 220ms';
+        document.body.style.backgroundColor = 'rgba(255,213,74,0.06)';
+        setTimeout(()=> document.body.style.backgroundColor = '', 280);
+      }, 50);
+      state.count = 0;
+    }
+    beep(); vibrate(); saveState(); updateUI();
+  }
+
+  btn.addEventListener('click', increment);
+  btn.addEventListener('pointerdown', (e)=>{
+    if(e.button !== 0) return;
+    clearInterval(holdInterval);
+    holdInterval = setInterval(increment, 120);
+  });
+  document.addEventListener('pointerup', ()=> clearInterval(holdInterval));
+  document.addEventListener('pointercancel', ()=> clearInterval(holdInterval));
+
+  resetBtn.addEventListener('click', ()=>{
+    if(!confirm('هل أنت متأكد أنك تريد تصفير العداد؟')) return;
+    state.count = 0; state.cycles = 0; saveState(); updateUI();
+  });
+
+  limitSelect.addEventListener('change', ()=>{
+    state.limit = parseInt(limitSelect.value,10); saveState(); updateUI();
+  });
+
+  vibToggle.addEventListener('click', ()=>{
+    state.vibrate = !state.vibrate; saveState(); updateUI();
+  });
+  soundToggle.addEventListener('click', ()=>{
+    state.sound = !state.sound; saveState(); updateUI();
+  });
+
+  shareBtn.addEventListener('click', async ()=>{
+    const text = `مسبحة رمضان حلمي — العداد: ${state.count} — الدورات المكتملة: ${state.cycles} — الحد: ${state.limit===0?'بدون حد':state.limit}`;
+    if(navigator.share){
+      try{ await navigator.share({title:'مسبحة رمضان حلمي', text}); return; }catch(e){}
+    }
+    try{
+      await navigator.clipboard.writeText(text);
+      alert('نُسخ النص للحافظة');
+    }catch(e){ alert(text); }
+  });
+
+  saveBtn.addEventListener('click', ()=>{
+    const html = `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>مسبحة رمضان حلمي</title><body><h1>مسبحة رمضان حلمي</h1><p>العداد: ${state.count}</p><p>الدورات المكتملة: ${state.cycles}</p></body></html>`;
+    const blob = new Blob([html], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'mispaha-ramadan-helmy.html'; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  });
+
+  loadState();
+})();
+</script>
+</body>
+</html>
